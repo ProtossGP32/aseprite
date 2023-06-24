@@ -1,0 +1,6 @@
+# Git
+.git*
+
+# Output paths
+build
+out
