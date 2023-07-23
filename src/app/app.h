@@ -123,15 +123,10 @@ namespace app {
 
     // App Signals
     obs::signal<void()> Exit;
+    obs::signal<void()> ExitGui;
     obs::signal<void()> PaletteChange;
     obs::signal<void()> ColorSpaceChange;
     obs::signal<void()> PalettePresetsChange;
-
-    // Signal triggered for TileManagementPlugin that want to create a
-    // tile on-the-fly when the active tilemap cel is empty (it's like
-    // a way to customize the "tilemap/tileset", instead of
-    // Manual/Auto/Semi, the plugin can offer a custom behavior).
-    obs::signal<void()> BeforePaintEmptyTilemap;
 
   private:
     class CoreModules;

@@ -37,6 +37,7 @@
 #include "app/ui/editor/editor.h"
 #include "app/ui/editor/tool_loop_impl.h"
 #include "app/ui/timeline/timeline.h"
+#include "app/ui/main_window.h"
 #include "app/ui_context.h"
 #include "base/fs.h"
 #include "base/replace_string.h"
@@ -700,6 +701,21 @@ int App_get_defaultPalette(lua_State* L)
   return 1;
 }
 
+int App_get_window(lua_State* L)
+{
+#if ENABLE_UI
+  App* app = App::instance();
+  if (app && app->mainWindow()) {
+    push_ptr(L, (ui::Window*)app->mainWindow());
+  }
+  else
+#endif
+  {
+    lua_pushnil(L);
+  }
+  return 1;
+}
+
 int App_set_sprite(lua_State* L)
 {
   auto sprite = may_get_docobj<Sprite>(L, 2);
@@ -814,6 +830,7 @@ const Property App_properties[] = {
   { "range",          App_get_range,          nullptr },
   { "isUIAvailable",  App_get_isUIAvailable,  nullptr },
   { "defaultPalette", App_get_defaultPalette, App_set_defaultPalette },
+  { "window",         App_get_window,         nullptr },
   { "events",         App_get_events,         nullptr },
   { "theme",          App_get_theme,          nullptr },
   { "uiScale",        App_get_uiScale,        nullptr },
