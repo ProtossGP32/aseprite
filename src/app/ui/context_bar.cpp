@@ -1151,6 +1151,8 @@ public:
     : ButtonSet(1)
     , m_ctxBar(ctxBar) {
     addItem(SkinTheme::get(this)->parts.dynamics(), "dynamics_field");
+
+    loadDynamicsPref();
   }
 
   void switchPopup() {
@@ -1160,15 +1162,27 @@ public:
       return;
     }
 
-    if (!m_popup) {
+    if (!m_popup.get())
       m_popup.reset(new DynamicsPopup(this));
-      m_popup->setOptionsGridVisibility(m_optionsGridVisibility);
-      m_popup->Close.connect(
-        [this](CloseEvent&){
-          deselectItems();
-          m_dynamics = m_popup->getDynamics();
-        });
-    }
+    auto activeTool = App::instance()->activeTool();
+    m_popup->loadDynamicsPref();
+    m_dynamics = m_popup->getDynamics();
+    m_sameInAllTools = m_popup->sharedSettings();
+    m_popup->Close.connect(
+      [this](CloseEvent&) {
+        deselectItems();
+        auto activeTool = App::instance()->activeTool();
+        m_dynamics = m_popup->getDynamics();
+        m_sameInAllTools = m_popup->sharedSettings();
+        if (m_sameInAllTools) {
+          for (Tool* tool : *App::instance()->toolBox())
+            saveDynamicsPref(tool);
+        }
+        else
+          saveDynamicsPref(activeTool);
+      });
+
+    m_popup->refreshVisibility();
 
     const gfx::Rect bounds = this->bounds();
     m_popup->remapWindow();
@@ -1190,6 +1204,48 @@ public:
     m_optionsGridVisibility = state;
     if (m_popup)
       m_popup->setOptionsGridVisibility(state);
+  }
+
+  void saveDynamicsPref(Tool* tool) {
+    auto& dynaPref = Preferences::instance().tool(tool).dynamics;
+    dynaPref.stabilizer(m_dynamics.stabilizer);
+    dynaPref.stabilizerFactor(m_dynamics.stabilizerFactor);
+    dynaPref.size(m_dynamics.size);
+    dynaPref.angle(m_dynamics.angle);
+    dynaPref.gradient(m_dynamics.gradient);
+    dynaPref.minSize.setValue(m_dynamics.minSize);
+    dynaPref.minAngle.setValue(m_dynamics.minAngle);
+    dynaPref.minPressureThreshold(m_dynamics.minPressureThreshold);
+    dynaPref.minVelocityThreshold(m_dynamics.minVelocityThreshold);
+    dynaPref.maxPressureThreshold(m_dynamics.maxPressureThreshold);
+    dynaPref.maxVelocityThreshold(m_dynamics.maxVelocityThreshold);
+    dynaPref.colorFromTo(m_dynamics.colorFromTo);
+    dynaPref.matrixIndex(m_popup->ditheringIndex());
+    Preferences::instance().shared.shareDynamics(m_sameInAllTools);
+  }
+
+  void loadDynamicsPref() {
+    auto& dynaPref = Preferences::instance()
+      .tool(App::instance()->activeTool()).dynamics;
+    m_dynamics.stabilizer = dynaPref.stabilizer();
+    m_dynamics.stabilizerFactor = dynaPref.stabilizerFactor();
+    m_dynamics.size = dynaPref.size();
+    m_dynamics.angle = dynaPref.angle();
+    m_dynamics.gradient = dynaPref.gradient();
+    m_dynamics.minSize = dynaPref.minSize();
+    m_dynamics.minAngle = dynaPref.minAngle();
+    m_dynamics.minPressureThreshold = dynaPref.minPressureThreshold();
+    m_dynamics.minVelocityThreshold = dynaPref.minVelocityThreshold();
+    m_dynamics.maxPressureThreshold = dynaPref.maxPressureThreshold();
+    m_dynamics.maxVelocityThreshold = dynaPref.maxVelocityThreshold();
+    m_dynamics.colorFromTo = dynaPref.colorFromTo();
+
+    DitheringSelector matrixSel(DitheringSelector::SelectMatrix);
+    matrixSel.setSelectedItemIndex(dynaPref.matrixIndex());
+    render::DitheringMatrix matrix(matrixSel.ditheringMatrix());
+    m_dynamics.ditheringMatrix = matrix;
+
+    m_sameInAllTools = Preferences::instance().shared.shareDynamics();
   }
 
 private:
@@ -1225,6 +1281,7 @@ private:
   ContextBar* m_ctxBar;
   mutable tools::DynamicsOptions m_dynamics;
   bool m_optionsGridVisibility = true;
+  bool m_sameInAllTools = false;
 };
 
 class ContextBar::FreehandAlgorithmField : public CheckBox {

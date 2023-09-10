@@ -1917,8 +1917,16 @@ bool Editor::onProcessMessage(Message* msg)
 
     case kMouseEnterMessage:
       m_brushPreview.hide();
-      updateToolLoopModifiersIndicators();
-      updateQuicktool();
+
+      // Do not update tool loop modifiers when the mouse exits and/re-enters
+      // the editor area while we are inside the same tool loop (hasCapture()).
+      // E.g. This avoids starting to rotate a rectangular marquee (Alt key
+      // pressed) if we have the subtract mode on (Shift+Alt) and touch the
+      // editor edge (MouseLeave/Enter)
+      if (!hasCapture()) {
+        updateToolLoopModifiersIndicators();
+        updateQuicktool();
+      }
       break;
 
     case kMouseLeaveMessage:
@@ -2559,8 +2567,8 @@ void Editor::setZoomAndCenterInMouse(const Zoom& zoom,
   // extra space for the zoom)
   gfx::Rect visibleBounds = editorToScreen(
     getViewportBounds().createIntersection(gfx::Rect(gfx::Point(0, 0), canvasSize())));
-  screenPos.x = std::clamp(screenPos.x, visibleBounds.x, visibleBounds.x2()-1);
-  screenPos.y = std::clamp(screenPos.y, visibleBounds.y, visibleBounds.y2()-1);
+  screenPos.x = std::clamp(screenPos.x, visibleBounds.x, std::max(visibleBounds.x, visibleBounds.x2()-1));
+  screenPos.y = std::clamp(screenPos.y, visibleBounds.y, std::max(visibleBounds.y, visibleBounds.y2()-1));
 
   spritePos = screenToEditor(screenPos);
 

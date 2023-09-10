@@ -132,7 +132,8 @@ void fit_bounds(const Display* parentDisplay,
     frame.y = std::clamp(frame.y, workarea.y, std::max(workarea.y, workarea.y2() - frame.h));
 
     // Set frame bounds directly
-    window->setBounds(gfx::Rect(0, 0, frame.w / scale, frame.h / scale));
+    pos = nativeWindow->pointFromScreen(frame.origin());
+    window->setBounds(gfx::Rect(pos.x, pos.y, frame.w / scale, frame.h / scale));
     window->loadNativeFrame(frame);
 
     if (window->isVisible()) {
@@ -147,8 +148,8 @@ void fit_bounds(const Display* parentDisplay,
     if (fitLogic)
       fitLogic(displayBounds, frame, [](Widget* widget){ return widget->bounds(); });
 
-    frame.x = std::clamp(frame.x, 0, displayBounds.w - frame.w);
-    frame.y = std::clamp(frame.y, 0, displayBounds.h - frame.h);
+    frame.x = std::clamp(frame.x, 0, std::max(0, displayBounds.w - frame.w));
+    frame.y = std::clamp(frame.y, 0, std::max(0, displayBounds.h - frame.h));
 
     window->setBounds(frame);
   }
