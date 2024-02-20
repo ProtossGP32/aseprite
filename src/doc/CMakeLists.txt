@@ -38,6 +38,7 @@ add_library(doc-lib
   file/gpl_file.cpp
   file/hex_file.cpp
   file/pal_file.cpp
+  frames_sequence.cpp
   grid.cpp
   grid_io.cpp
   image.cpp
@@ -73,6 +74,7 @@ add_library(doc-lib
   tag.cpp
   tag_io.cpp
   tags.cpp
+  tile_primitives.cpp
   tileset.cpp
   tileset_io.cpp
   tilesets.cpp

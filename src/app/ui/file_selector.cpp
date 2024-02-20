@@ -1,5 +1,5 @@
 // Aseprite
-// Copyright (C) 2019-2022  Igara Studio S.A.
+// Copyright (C) 2019-2024  Igara Studio S.A.
 // Copyright (C) 2001-2018  David Capello
 //
 // This program is distributed under the terms of
@@ -411,13 +411,9 @@ bool FileSelector::show(
   fs->refresh();
 
   // We have to find where the user should begin to browse files
-  std::string start_folder_path;
-  if (initialPath.empty()) {
-    start_folder_path = get_initial_path_to_select_filename(initialPath);
-  }
-  else {
-    start_folder_path = base::get_file_path(initialPath);
-  }
+  std::string start_folder_path =
+    base::get_file_path(
+      get_initial_path_to_select_filename(initialPath));
 
   IFileItem* start_folder = fs->getFileItemFromPath(start_folder_path);
   if (!start_folder) {
@@ -700,6 +696,12 @@ again:
   Preferences::instance().fileSelector.zoom(m_fileList->zoom());
 
   return (!output.empty());
+}
+
+void FileSelector::onOpen(Event& ev)
+{
+  app::gen::FileSelector::onOpen(ev);
+  onRefreshFolder();
 }
 
 bool FileSelector::onProcessMessage(ui::Message* msg)

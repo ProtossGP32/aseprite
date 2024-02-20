@@ -1,5 +1,5 @@
 // Aseprite
-// Copyright (C) 2020-2022  Igara Studio S.A.
+// Copyright (C) 2020-2023  Igara Studio S.A.
 // Copyright (C) 2001-2018  David Capello
 //
 // This program is distributed under the terms of
@@ -15,6 +15,7 @@
 #include "app/cmd/set_layer_opacity.h"
 #include "app/cmd/set_layer_tileset.h"
 #include "app/cmd/set_tileset_base_index.h"
+#include "app/cmd/set_tileset_match_flags.h"
 #include "app/cmd/set_tileset_name.h"
 #include "app/cmd/set_user_data.h"
 #include "app/commands/command.h"
@@ -264,7 +265,7 @@ private:
                                      newBlendMode != static_cast<LayerImage*>(m_layer)->blendMode()))))) {
       try {
         ContextWriter writer(UIContext::instance());
-        Tx tx(writer.context(), "Set Layer Properties");
+        Tx tx(writer, "Set Layer Properties");
 
         DocRange range;
         if (m_range.enabled())
@@ -307,6 +308,17 @@ private:
 
       update_screen_for_document(m_document);
     }
+
+    // We indicate that there are no more pending changes in both
+    // cases 1) if we were able to commit the transaction or 2) if an
+    // exception ocurred (e.g. the sprite was locked). This is because
+    // sometimes if a big operation with multiple modifications
+    // (e.g. deleting a lot of cels at the same time) is going to
+    // happen, we'll receive a lot of onActiveSiteChange() events +
+    // onCommitChange() calls.
+    //
+    // TODO this is similar to CelPropertiesWindow::onCommitChange()
+    m_pendingChanges = false;
   }
 
   // ContextObserver impl
@@ -362,6 +374,7 @@ private:
     tilesetInfo.grid = tileset->grid();
     tilesetInfo.name = tileset->name();
     tilesetInfo.baseIndex = tileset->baseIndex();
+    tilesetInfo.matchFlags = tileset->matchFlags();
     tilesetInfo.tsi = tilemap->tilesetIndex();
 
     try {
@@ -372,13 +385,17 @@ private:
       if (window.closer() != window.ok())
         return;
 
+      // Save "advanced" options
+      tilesetSel.saveAdvancedPreferences();
+
       tilesetInfo = tilesetSel.getInfo();
 
       if (tileset->name() != tilesetInfo.name ||
           tileset->baseIndex() != tilesetInfo.baseIndex ||
+          tileset->matchFlags() != tilesetInfo.matchFlags ||
           tilesetInfo.tsi != tilemap->tilesetIndex()) {
         ContextWriter writer(UIContext::instance());
-        Tx tx(writer.context(), "Set Tileset Properties");
+        Tx tx(writer, "Set Tileset Properties");
         // User changed tilemap's tileset
         if (tilesetInfo.tsi != tilemap->tilesetIndex()) {
           tileset = tilemap->sprite()->tilesets()->get(tilesetInfo.tsi);
@@ -388,6 +405,8 @@ private:
           tx(new cmd::SetTilesetName(tileset, tilesetInfo.name));
         if (tileset->baseIndex() != tilesetInfo.baseIndex)
           tx(new cmd::SetTilesetBaseIndex(tileset, tilesetInfo.baseIndex));
+        if (tileset->matchFlags() != tilesetInfo.matchFlags)
+          tx(new cmd::SetTilesetMatchFlags(tileset, tilesetInfo.matchFlags));
         // TODO catch the tileset base index modification from the editor
         App::instance()->mainWindow()->invalidate();
         tx.commit();

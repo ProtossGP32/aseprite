@@ -48,11 +48,7 @@ int Tile_get_image(lua_State* L)
   if (!ts)
     return 0;
 
-  ImageRef image = ts->get(tile->ti);
-  if (image)
-    push_tileset_image(L, ts, image.get());
-  else
-    lua_pushnil(L);
+  push_tileset_image(L, ts, tile->ti);
   return 1;
 }
 
@@ -64,7 +60,7 @@ int Tile_set_image(lua_State* L)
   ImageRef newImage(Image::createCopy(srcImage));
 
   if (ts && ts->sprite()) {
-    Tx tx;
+    Tx tx(ts->sprite());
     tx(new cmd::ReplaceImage(ts->sprite(),
                              ts->get(tile->ti),
                              newImage));
@@ -129,8 +125,8 @@ int Tile_set_data(lua_State* L)
   doc::UserData ud = ts->getTileData(tile->ti);
   ud.setText(text);
 
-  if (ts->sprite()) {           // TODO use transaction in this sprite
-    Tx tx;
+  if (ts->sprite()) {
+    Tx tx(ts->sprite());
     tx(new cmd::SetTileData(ts, tile->ti, ud));
     tx.commit();
   }
@@ -152,8 +148,8 @@ int Tile_set_color(lua_State* L)
   doc::UserData ud = ts->getTileData(tile->ti);
   ud.setColor(docColor);
 
-  if (ts->sprite()) {           // TODO use transaction in this sprite
-    Tx tx;
+  if (ts->sprite()) {
+    Tx tx(ts->sprite());
     tx(new cmd::SetTileData(ts, tile->ti, ud));
     tx.commit();
   }
@@ -172,7 +168,7 @@ int Tile_set_properties(lua_State* L)
 
   auto newProperties = get_value_from_lua<doc::UserData::Properties>(L, 2);
   if (ts->sprite()) {
-    Tx tx;
+    Tx tx(ts->sprite());
     tx(new cmd::SetTileDataProperties(ts, tile->ti,
                                       std::string(),
                                       std::move(newProperties)));

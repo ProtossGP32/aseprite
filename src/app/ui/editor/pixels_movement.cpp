@@ -119,7 +119,8 @@ PixelsMovement::PixelsMovement(
   : m_reader(context)
   , m_site(site)
   , m_document(site.document())
-  , m_tx(context, operationName)
+  , m_tx(Tx::DontLockDoc, context,
+         context->activeDocument(), operationName)
   , m_isDragging(false)
   , m_adjustPivot(false)
   , m_handle(NoHandle)
@@ -129,7 +130,6 @@ PixelsMovement::PixelsMovement(
   , m_canHandleFrameChange(false)
   , m_fastMode(false)
   , m_needsRotSpriteRedraw(false)
-  , m_fineModificationApplied(false)
 {
   double cornerThick = (m_site.tilemapMode() == TilemapMode::Tiles) ?
                           CORNER_THICK_FOR_TILEMAP_MODE :
@@ -377,14 +377,13 @@ void PixelsMovement::moveImage(const gfx::PointF& pos, MoveModifier moveModifier
 
     case MovePixelsHandle: {
       double dx, dy;
-
-      if (m_fineModificationApplied) {
-        dx = (pos.x - m_catchPos.x);
-        dy = (pos.y - m_catchPos.y);
-      }
-      else {
+      if ((moveModifier & FineControl) == 0) {
         dx = (std::floor(pos.x) - std::floor(m_catchPos.x));
         dy = (std::floor(pos.y) - std::floor(m_catchPos.y));
+      }
+      else {
+        dx = (pos.x - m_catchPos.x);
+        dy = (pos.y - m_catchPos.y);
       }
 
       if ((moveModifier & LockAxisMovement) == LockAxisMovement) {
@@ -480,8 +479,6 @@ void PixelsMovement::moveImage(const gfx::PointF& pos, MoveModifier moveModifier
           if (dx >= 0.0) { dx = std::floor(dx); } else { dx = std::ceil(dx); }
           if (dy >= 0.0) { dy = std::floor(dy); } else { dy = std::ceil(dy); }
         }
-        else
-          m_fineModificationApplied = true;
 
         if (m_handle == ScaleNHandle || m_handle == ScaleSHandle) {
           dx = 0.0;
@@ -557,7 +554,6 @@ void PixelsMovement::moveImage(const gfx::PointF& pos, MoveModifier moveModifier
       }
 
       newTransformation.angle(newAngle);
-      m_fineModificationApplied = true;
       break;
     }
 
@@ -702,7 +698,6 @@ void PixelsMovement::moveImage(const gfx::PointF& pos, MoveModifier moveModifier
       double newSkew = std::atan2(AC.x*AC0.y - AC.y*AC0.x, AC * AC0);
       newSkew = std::clamp(newSkew, -PI*85.0/180.0, PI*85.0/180.0);
       newTransformation.skew(newSkew);
-      m_fineModificationApplied = true;
       break;
     }
 

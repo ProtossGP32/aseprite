@@ -73,6 +73,14 @@ namespace doc {
     static Sprite* MakeStdSprite(const ImageSpec& spec,
                                  const int ncolors = 256,
                                  const ImageBufferPtr& imageBuf = ImageBufferPtr());
+    // Creates a new sprite with one tilemap layer and one cel
+    // with a tilemap's image of the size specified by tilemapspec and the
+    // given tileset.
+    static Sprite* MakeStdTilemapSpriteWithTileset(const ImageSpec& spec,
+                                  const ImageSpec& tilemapspec,
+                                  const Tileset& tileset,
+                                  const int ncolors = 256,
+                                  const ImageBufferPtr& imageBuf = ImageBufferPtr());
 
     ////////////////////////////////////////
     // Main properties
@@ -97,7 +105,7 @@ namespace doc {
     void setColorSpace(const gfx::ColorSpaceRef& colorSpace);
 
     // This method is only required/used for the template functions app::script::UserData_set_text/color.
-    const Sprite* sprite() const { return this; }
+    Sprite* sprite() const { return const_cast<Sprite*>(this); }
 
     // Returns true if the sprite has a background layer and it's visible
     bool isOpaque() const;

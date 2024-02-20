@@ -116,9 +116,20 @@ RemoveLayerCommand::RemoveLayerCommand()
 
 bool RemoveLayerCommand::onEnabled(Context* context)
 {
-  return context->checkFlags(ContextFlags::ActiveDocumentIsWritable |
-                             ContextFlags::HasActiveSprite |
-                             ContextFlags::HasActiveLayer);
+  if (!context->checkFlags(ContextFlags::ActiveDocumentIsWritable |
+                           ContextFlags::HasActiveSprite |
+                           ContextFlags::HasActiveLayer))
+    return false;
+
+  const ContextReader reader(context);
+  const Sprite* sprite(reader.sprite());
+  const Layer* layer = reader.layer();
+
+  return sprite && layer &&
+    // We can remove all layers from non-root groups
+    ((layer->parent() != sprite->root()) ||
+     // Check that we are not removing the last layer in the sprite
+     (sprite->root()->layersCount() > 1));
 }
 
 void RemoveLayerCommand::onExecute(Context* context)
@@ -128,7 +139,7 @@ void RemoveLayerCommand::onExecute(Context* context)
   Doc* document(writer.document());
   Sprite* sprite(writer.sprite());
   {
-    Tx tx(writer.context(), "Remove Layer");
+    Tx tx(writer, "Remove Layer");
     DocApi api = document->getApi(tx);
     // We need to remove all the tilesets after the tilemaps are deleted
     // and in descending tileset index order, otherwise the tileset indexes
@@ -161,11 +172,17 @@ void RemoveLayerCommand::onExecute(Context* context)
       }
     }
     else {
-      if (deleting_all_layers(context, sprite, 1)) {
+      Layer* layer = writer.layer();
+      layer_t deletedTopLevelLayers = 0;
+
+      if (layer->parent() == sprite->root()) {
+        ++deletedTopLevelLayers;
+      }
+
+      if (deleting_all_layers(context, sprite, deletedTopLevelLayers)) {
         return;
       }
 
-      Layer* layer = writer.layer();
       if (layer->isTilemap() && !continue_deleting_unused_tilesets(context, sprite, {layer}, tsiToDelete)) {
         return;
       }

@@ -32,13 +32,15 @@ namespace app {
       virtual doc::BrushRef getActiveBrush() = 0;
       virtual void setMaxSize(int size) = 0;
       virtual void setMaxAngle(int angle) = 0;
+      virtual void onDynamicsChange(const tools::DynamicsOptions& dynamicsOptions) = 0;
     };
     DynamicsPopup(Delegate* delegate);
 
     tools::DynamicsOptions getDynamics() const;
     void setOptionsGridVisibility(bool state);
-    void loadDynamicsPref();
-    int ditheringIndex() const;
+    void loadDynamicsPref(bool sameInAllTools);
+    void saveDynamicsPref(bool sameInAllTools);
+    std::string ditheringMatrixName() const;
     void refreshVisibility();
     bool sharedSettings() const;
 

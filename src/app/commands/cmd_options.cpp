@@ -1,5 +1,5 @@
 // Aseprite
-// Copyright (C) 2018-2023  Igara Studio S.A.
+// Copyright (C) 2018-2024  Igara Studio S.A.
 // Copyright (C) 2001-2018  David Capello
 //
 // This program is distributed under the terms of
@@ -331,9 +331,11 @@ public:
     // Slices default color
     defaultSliceColor()->setColor(m_pref.slices.defaultColor());
 
-    // Others
+    // Timeline
     firstFrame()->setTextf("%d", m_globPref.timeline.firstFrame());
+    resetTimelineSel()->Click.connect([this]{ onResetTimelineSel(); });
 
+    // Others
     if (m_pref.general.expandMenubarOnMouseover())
       expandMenubarOnMouseover()->setSelected(true);
 
@@ -414,11 +416,18 @@ public:
 
     onNativeCursorChange();
 
-    if (m_pref.experimental.useNativeClipboard())
-      nativeClipboard()->setSelected(true);
-
-    if (m_pref.experimental.useNativeFileDialog())
-      nativeFileDialog()->setSelected(true);
+    // "Show Aseprite file dialog" option is the inverse of the old
+    // experimental "use native file dialog" option
+    showAsepriteFileDialog()->setSelected(
+      !m_pref.experimental.useNativeFileDialog());
+    showAsepriteFileDialog()->Click.connect([this]{
+      nativeFileDialog()->setSelected(
+        !showAsepriteFileDialog()->isSelected());
+    });
+    nativeFileDialog()->Click.connect([this]{
+      showAsepriteFileDialog()->setSelected(
+        !nativeFileDialog()->isSelected());
+    });
 
 #ifdef _WIN32 // Show Tablet section on Windows
     {
@@ -767,13 +776,16 @@ public:
     }
     update_windows_color_profile_from_preferences();
 
+    m_pref.range.alpha(static_cast<app::gen::AlphaRange>(alpha()->getSelectedItemIndex()));
+    m_pref.range.opacity(static_cast<app::gen::AlphaRange>(opacity()->getSelectedItemIndex()));
+
     // Change sprite grid bounds
     if (m_context &&
         m_context->activeDocument() &&
         m_context->activeDocument()->sprite() &&
         m_context->activeDocument()->sprite()->gridBounds() != gridBounds()) {
       ContextWriter writer(m_context);
-      Tx tx(m_context, Strings::commands_GridSettings(), ModifyDocument);
+      Tx tx(writer, Strings::commands_GridSettings(), ModifyDocument);
       tx(new cmd::SetGridBounds(writer.sprite(), gridBounds()));
       tx.commit();
     }
@@ -811,8 +823,6 @@ public:
     m_pref.undo.allowNonlinearHistory(undoAllowNonlinearHistory()->isSelected());
 
     // Experimental features
-    m_pref.experimental.useNativeClipboard(nativeClipboard()->isSelected());
-    m_pref.experimental.useNativeFileDialog(nativeFileDialog()->isSelected());
     m_pref.experimental.flashLayer(flashLayer()->isSelected());
     m_pref.experimental.nonactiveLayersOpacity(nonactiveLayersOpacity()->getValue());
     m_pref.quantization.rgbmapAlgorithm(m_rgbmapAlgorithmSelector.algorithm());
@@ -1066,6 +1076,9 @@ private:
     filesWithCs()->setEnabled(state);
     missingCsLabel()->setEnabled(state);
     missingCs()->setEnabled(state);
+
+    alpha()->setSelectedItemIndex(static_cast<int>(m_pref.range.alpha()));
+    opacity()->setSelectedItemIndex(static_cast<int>(m_pref.range.opacity()));
   }
 
   void onResetColorManagement() {
@@ -1696,6 +1709,14 @@ private:
         break;
     }
     layout();
+  }
+
+  void onResetTimelineSel() {
+    keepSelection()->setSelected(m_pref.timeline.keepSelection.defaultValue());
+    selectOnClick()->setSelected(m_pref.timeline.selectOnClick.defaultValue());
+    selectOnClickWithKey()->setSelected(m_pref.timeline.selectOnClickWithKey.defaultValue());
+    selectOnDrag()->setSelected(m_pref.timeline.selectOnDrag.defaultValue());
+    dragAndDropFromEdges()->setSelected(m_pref.timeline.dragAndDropFromEdges.defaultValue());
   }
 
   gfx::Rect gridBounds() const {

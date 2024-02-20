@@ -258,7 +258,7 @@ int save_document(Context* context, Doc* document)
     FileOp::createSaveDocumentOperation(
       context,
       FileOpROI(document, document->sprite()->bounds(),
-                "", "", SelectedFrames(), false),
+                "", "", FramesSequence(), false),
       document->filename(), "",
       false));
   if (!fop)
@@ -286,6 +286,16 @@ bool is_static_image_format(const std::string& filename)
   return (format && format->support(FILE_SUPPORT_SEQUENCES));
 }
 
+bool format_supports_palette(const std::string& filename)
+{
+  // Get the format through the extension of the filename
+  FileFormat* format =
+    FileFormatsManager::instance()
+    ->getFileFormat(dio::detect_format_by_file_extension(filename));
+
+  return (format && format->support(FILE_SUPPORT_PALETTES));
+}
+
 FileOpROI::FileOpROI()
   : m_document(nullptr)
   , m_slice(nullptr)
@@ -297,13 +307,13 @@ FileOpROI::FileOpROI(const Doc* doc,
                      const gfx::Rect& bounds,
                      const std::string& sliceName,
                      const std::string& tagName,
-                     const doc::SelectedFrames& selFrames,
+                     const doc::FramesSequence& framesSeq,
                      const bool adjustByTag)
   : m_document(doc)
   , m_bounds(bounds)
   , m_slice(nullptr)
   , m_tag(nullptr)
-  , m_selFrames(selFrames)
+  , m_framesSeq(framesSeq)
 {
   if (doc) {
     if (!sliceName.empty())
@@ -314,18 +324,18 @@ FileOpROI::FileOpROI(const Doc* doc,
       m_tag = doc->sprite()->tags().getByName(tagName);
 
     if (m_tag) {
-      if (m_selFrames.empty())
-        m_selFrames.insert(m_tag->fromFrame(), m_tag->toFrame());
+      if (m_framesSeq.empty())
+        m_framesSeq.insert(m_tag->fromFrame(), m_tag->toFrame());
       else if (adjustByTag)
-        m_selFrames.displace(m_tag->fromFrame());
+        m_framesSeq.displace(m_tag->fromFrame());
 
-      m_selFrames =
-        m_selFrames.filter(std::max(0, m_tag->fromFrame()),
+      m_framesSeq =
+        m_framesSeq.filter(std::max(0, m_tag->fromFrame()),
                            std::min(m_tag->toFrame(), doc->sprite()->lastFrame()));
     }
     // All frames if selected frames is empty
-    else if (m_selFrames.empty())
-      m_selFrames.insert(0, doc->sprite()->lastFrame());
+    else if (m_framesSeq.empty())
+      m_framesSeq.insert(0, doc->sprite()->lastFrame());
   }
 }
 
@@ -350,7 +360,7 @@ gfx::Size FileOpROI::fileCanvasSize() const
 {
   if (m_slice) {
     gfx::Size size;
-    for (auto frame : m_selFrames)
+    for (auto frame : m_framesSeq)
       size |= frameBounds(frame).size();
     return size;
   }
@@ -401,7 +411,7 @@ FileOp* FileOp::createLoadDocumentOperation(Context* context,
     if (!(flags & FILE_LOAD_SEQUENCE_NONE)) {
       std::string left, right;
       int c, width, start_from;
-      char buf[512];
+      std::string buf;
 
       // First of all, we must generate the list of files to load in the
       // sequence...
@@ -412,7 +422,7 @@ FileOp* FileOp::createLoadDocumentOperation(Context* context,
         // Try to get more file names
         for (c=start_from+1; ; c++) {
           // Get the next file name
-          sprintf(buf, "%s%0*d%s", left.c_str(), width, c, right.c_str());
+          buf = fmt::format("{0}{1:0{2}d}{3}", left, c, width, right);
 
           // If the file doesn't exist, we doesn't need more files to load
           if (!base::is_file(buf))
@@ -749,7 +759,7 @@ FileOp* FileOp::createSaveDocumentOperation(const Context* context,
 
     frame_t outputFrame = 0;
 
-    for (frame_t frame : fop->m_roi.selectedFrames()) {
+    for (frame_t frame : fop->m_roi.framesSequence()) {
       Tag* innerTag = (fop->m_roi.tag() ? fop->m_roi.tag(): sprite->tags().innerTag(frame));
       Tag* outerTag = (fop->m_roi.tag() ? fop->m_roi.tag(): sprite->tags().outerTag(frame));
       FilenameInfo fnInfo;
@@ -1017,7 +1027,7 @@ void FileOp::operate(IFileOpProgress* progress)
       render.setNewBlend(m_config.newBlend);
 
       frame_t outputFrame = 0;
-      for (frame_t frame : m_roi.selectedFrames()) {
+      for (frame_t frame : m_roi.framesSequence()) {
         gfx::Rect bounds = m_roi.frameBounds(frame);
         if (bounds.isEmpty())
           continue; // Skip frame because there is no slice key
