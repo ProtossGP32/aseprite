@@ -1,5 +1,5 @@
 // Aseprite
-// Copyright (C) 2018-2023  Igara Studio S.A.
+// Copyright (C) 2018-2024  Igara Studio S.A.
 // Copyright (C) 2001-2018  David Capello
 //
 // This program is distributed under the terms of
@@ -267,39 +267,53 @@ int App::initialize(const AppOptions& options)
 
 #ifdef ENABLE_UI
   m_isGui = options.startUI() && !options.previewCLI();
+
+  // Notify the scripting engine that we're going to enter to GUI
+  // mode, this is useful so we can mark the stdin file handle as
+  // closed so no script can hang the program if it tries to read from
+  // stdin when the GUI is running.
+  #ifdef ENABLE_SCRIPTING
+    if (m_isGui)
+      m_engine->notifyRunningGui();
+  #endif
 #else
   m_isGui = false;
 #endif
+
   m_isShell = options.startShell();
   m_coreModules = std::make_unique<CoreModules>();
+
+  auto& pref = preferences();
+
+  os::TabletOptions tabletOptions;
 
 #if LAF_WINDOWS
 
   if (options.disableWintab() ||
-      !preferences().experimental.loadWintabDriver() ||
-      preferences().tablet.api() == "pointer") {
-    system->setTabletAPI(os::TabletAPI::WindowsPointerInput);
+      !pref.experimental.loadWintabDriver() ||
+      pref.tablet.api() == "pointer") {
+    tabletOptions.api = os::TabletAPI::WindowsPointerInput;
   }
-  else if (preferences().tablet.api() == "wintab_packets")
-    system->setTabletAPI(os::TabletAPI::WintabPackets);
-  else // preferences().tablet.api() == "wintab"
-    system->setTabletAPI(os::TabletAPI::Wintab);
+  else if (pref.tablet.api() == "wintab_packets") {
+    tabletOptions.api = os::TabletAPI::WintabPackets;
+  }
+  else { // pref.tablet.api() == "wintab"
+    tabletOptions.api = os::TabletAPI::Wintab;
+  }
+  tabletOptions.setCursorFix = pref.tablet.setCursorFix();
 
 #elif LAF_MACOS
 
-  if (!preferences().general.osxAsyncView())
+  if (!pref.general.osxAsyncView())
     os::osx_set_async_view(false);
 
 #elif LAF_LINUX
 
-  {
-    const std::string& stylusId = preferences().general.x11StylusId();
-    if (!stylusId.empty())
-      os::x11_set_user_defined_string_to_detect_stylus(stylusId);
-  }
+  tabletOptions.detectStylusPattern = pref.general.x11StylusId();
 
 #endif
 
+  system->setTabletOptions(tabletOptions);
   system->setAppName(get_app_name());
   system->setAppMode(m_isGui ? os::AppMode::GUI:
                                os::AppMode::CLI);
@@ -321,22 +335,27 @@ int App::initialize(const AppOptions& options)
       break;
   }
 
-  initialize_color_spaces(preferences());
+  initialize_color_spaces(pref);
 
 #ifdef ENABLE_DRM
   LOG("APP: Initializing DRM...\n");
   app_configure_drm();
 #endif
 
+#ifdef ENABLE_STEAM
+  if (options.noInApp())
+    m_inAppSteam = false;
+#endif
+
   // Load modules
-  m_modules = std::make_unique<Modules>(createLogInDesktop, preferences());
+  m_modules = std::make_unique<Modules>(createLogInDesktop, pref);
   m_legacy = std::make_unique<LegacyModules>(isGui() ? REQUIRE_INTERFACE: 0);
 #ifdef ENABLE_UI
   m_brushes = std::make_unique<AppBrushes>();
 #endif
 
   // Data recovery is enabled only in GUI mode
-  if (isGui() && preferences().general.dataRecovery())
+  if (isGui() && pref.general.dataRecovery())
     m_modules->createDataRecovery(context());
 
   if (isPortable())
@@ -356,8 +375,8 @@ int App::initialize(const AppOptions& options)
     m_uiSystem->setClipboardDelegate(&m_modules->m_clipboard);
 
     // Setup the GUI cursor and redraw screen
-    ui::set_use_native_cursors(preferences().cursor.useNativeCursor());
-    ui::set_mouse_cursor_scale(preferences().cursor.cursorScale());
+    ui::set_use_native_cursors(pref.cursor.useNativeCursor());
+    ui::set_mouse_cursor_scale(pref.cursor.cursorScale());
     ui::set_mouse_cursor(kArrowCursor);
 
     auto manager = ui::Manager::getDefault();
@@ -370,7 +389,7 @@ int App::initialize(const AppOptions& options)
       m_mod->modMainWindow(m_mainWindow.get());
 
     // Data recovery is enabled only in GUI mode
-    if (preferences().general.dataRecovery())
+    if (pref.general.dataRecovery())
       m_modules->searchDataRecoverySessions();
 
     // Default status of the main window.
@@ -381,19 +400,20 @@ int App::initialize(const AppOptions& options)
     m_mainWindow->openWindow();
 
 #if LAF_LINUX // TODO check why this is required and we cannot call
-              //      updateAllDisplaysWithNewScale() on Linux/X11
+              //      updateAllDisplays() on Linux/X11
     // Redraw the whole screen.
     manager->invalidate();
 #else
     // To know the initial manager size we call to
-    // Manager::updateAllDisplaysWithNewScale(...) so we receive a
+    // Manager::updateAllDisplays(...) so we receive a
     // Manager::onNewDisplayConfiguration() (which will update the
     // bounds of the manager for first time).  This is required so if
     // the OpenFileCommand (called when we're processing the CLI with
     // OpenBatchOfFiles) shows a dialog to open a sequence of files,
     // the dialog is centered correctly to the manager bounds.
     const int scale = Preferences::instance().general.screenScale();
-    manager->updateAllDisplaysWithNewScale(scale);
+    const bool gpu = Preferences::instance().general.gpuAcceleration();
+    manager->updateAllDisplays(scale, gpu);
 #endif
   }
 #endif  // ENABLE_UI
@@ -510,9 +530,18 @@ void App::run()
 
     // Initialize Steam API
 #ifdef ENABLE_STEAM
-    steam::SteamAPI steam;
-    if (steam.initialized())
-      os::instance()->activateApp();
+    std::unique_ptr<steam::SteamAPI> steam;
+    if (m_inAppSteam) {
+      steam = std::make_unique<steam::SteamAPI>();
+      if (steam->isInitialized())
+        os::instance()->activateApp();
+    }
+    else {
+      // We tried to load the Steam SDK without calling
+      // SteamAPI_InitSafe() to check if we could run the program
+      // without "in game" indication but still capturing screenshots
+      // on Steam, and that wasn't the case.
+    }
 #endif
 
 #if defined(_DEBUG) || defined(ENABLE_DEVMODE)
@@ -706,24 +735,21 @@ Workspace* App::workspace() const
 {
   if (m_mainWindow)
     return m_mainWindow->getWorkspace();
-  else
-    return nullptr;
+  return nullptr;
 }
 
 ContextBar* App::contextBar() const
 {
   if (m_mainWindow)
     return m_mainWindow->getContextBar();
-  else
-    return nullptr;
+  return nullptr;
 }
 
 Timeline* App::timeline() const
 {
   if (m_mainWindow)
     return m_mainWindow->getTimeline();
-  else
-    return nullptr;
+  return nullptr;
 }
 
 Preferences& App::preferences() const
@@ -852,8 +878,7 @@ PixelFormat app_get_current_pixel_format()
   Doc* doc = ctx->activeDocument();
   if (doc)
     return doc->sprite()->pixelFormat();
-  else
-    return IMAGE_RGB;
+  return IMAGE_RGB;
 }
 
 int app_get_color_to_clear_layer(Layer* layer)

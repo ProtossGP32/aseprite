@@ -1,5 +1,5 @@
 // Aseprite Document Library
-// Copyright (C) 2018-2023  Igara Studio S.A.
+// Copyright (C) 2018-2024  Igara Studio S.A.
 // Copyright (C) 2001-2018  David Capello
 //
 // This file is released under the terms of the MIT license.
@@ -198,6 +198,11 @@ Sprite* Sprite::MakeStdTilemapSpriteWithTileset(const ImageSpec& spec,
 //////////////////////////////////////////////////////////////////////
 // Main properties
 
+bool Sprite::hasPixelRatio() const
+{
+  return m_pixelRatio != PixelRatio(1, 1);
+}
+
 void Sprite::setPixelFormat(PixelFormat format)
 {
   m_spec.setColorMode((ColorMode)format);
@@ -306,7 +311,7 @@ LayerImage* Sprite::backgroundLayer() const
 Layer* Sprite::firstLayer() const
 {
   Layer* layer = root()->firstLayer();
-  while (layer->isGroup())
+  while (layer && layer->isGroup())
     layer = static_cast<LayerGroup*>(layer)->firstLayer();
   return layer;
 }
@@ -766,6 +771,11 @@ LayerList Sprite::allTilemaps() const
   LayerList list;
   m_root->allTilemaps(list);
   return list;
+}
+
+std::string Sprite::visibleLayerHierarchyAsString() const
+{
+  return m_root->visibleLayerHierarchyAsString("");
 }
 
 CelsRange Sprite::cels() const

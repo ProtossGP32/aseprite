@@ -1,5 +1,5 @@
 // Aseprite
-// Copyright (C) 2018-2023  Igara Studio S.A.
+// Copyright (C) 2018-2024  Igara Studio S.A.
 // Copyright (C) 2001-2018  David Capello
 //
 // This program is distributed under the terms of
@@ -754,8 +754,11 @@ void Editor::drawOneSpriteUnclippedRect(ui::Graphics* g, const gfx::Rect& sprite
   }
 
   if (rendered && rendered->nativeHandle()) {
+    os::Paint p;
     if (newEngine) {
       os::Sampling sampling;
+      p.srcEdges(os::Paint::SrcEdges::Fast); // Enable mipmaps if possible
+
       if (m_proj.scaleX() < 1.0) {
         switch (pref.editor.downsampling()) {
           case gen::Downsampling::NEAREST:
@@ -775,7 +778,6 @@ void Editor::drawOneSpriteUnclippedRect(ui::Graphics* g, const gfx::Rect& sprite
         }
       }
 
-      os::Paint p;
       if (renderProperties.requiresRgbaBackbuffer)
         p.blendMode(os::BlendMode::SrcOver);
       else
@@ -788,7 +790,11 @@ void Editor::drawOneSpriteUnclippedRect(ui::Graphics* g, const gfx::Rect& sprite
                      &p);
     }
     else {
-      g->blit(rendered.get(), 0, 0, dest.x, dest.y, dest.w, dest.h);
+      g->drawSurface(rendered.get(),
+                     gfx::Rect(0, 0, dest.w, dest.h),
+                     gfx::Rect(dest.x, dest.y, dest.w, dest.h),
+                     os::Sampling(os::Sampling::Filter::Nearest),
+                     &p);
     }
   }
 
@@ -2436,6 +2442,12 @@ void Editor::onRemoveSlice(DocEvent& ev)
       m_selectedSlices.contains(ev.slice()->id())) {
     m_selectedSlices.erase(ev.slice()->id());
   }
+}
+
+void Editor::onBeforeLayerVisibilityChange(DocEvent& ev, bool newState)
+{
+  if (m_state)
+    m_state->onBeforeLayerVisibilityChange(this, ev.layer(), newState);
 }
 
 void Editor::setCursor(const gfx::Point& mouseDisplayPos)

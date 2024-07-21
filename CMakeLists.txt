@@ -1,5 +1,5 @@
 # Aseprite
-# Copyright (C) 2018-2022  Igara Studio S.A.
+# Copyright (C) 2018-2024  Igara Studio S.A.
 # Copyright (C) 2001-2018  David Capello
 
 cmake_minimum_required(VERSION 3.16)
@@ -60,6 +60,7 @@ option(ENABLE_DRM          "Compile the DRM-enabled version (e.g. for automatic 
 option(ENABLE_STEAM        "Compile with Steam library" off)
 option(ENABLE_DEVMODE      "Compile vesion for developers" off)
 option(ENABLE_UI           "Compile UI (turn off to compile CLI-only version)" on)
+option(ENABLE_I18N_STRINGS "Clone i18n strings repo (https://github.com/aseprite/strings) to bin/data/strings.git" off)
 option(FULLSCREEN_PLATFORM "Enable fullscreen by default" off)
 option(ENABLE_CLANG_TIDY   "Enable static analysis" off)
 option(ENABLE_CCACHE       "Use CCache to improve recompilation speed (optional)" on)
@@ -82,13 +83,18 @@ else()
   set(REQUIRE_CURL OFF)
 endif()
 
-# Select libcurl's TLS backend according to target platform
-if(REQUIRE_CURL AND ENABLE_DRM)
-  if(APPLE)
-    option(CMAKE_USE_SECTRANSP "enable Apple OS native SSL/TLS" ON)
-  endif()
+# SSL/TLS support
+if(REQUIRE_CURL AND NOT USE_SHARED_CURL)
+  # Disable OpenSSL (use native libraries only)
+  set(CMAKE_USE_OPENSSL OFF CACHE BOOL "Use OpenSSL code. Experimental")
+  set(CMAKE_USE_LIBSSH2 OFF CACHE BOOL "Use libSSH2")
+
   if(WIN32)
-    set(CMAKE_USE_SCHANNEL "enable Windows native SSL/TLS" ON)
+    set(CMAKE_USE_SCHANNEL ON CACHE BOOL "enable Windows native SSL/TLS")
+  elseif(APPLE)
+    set(CMAKE_USE_SECTRANSP ON CACHE BOOL "enable Apple OS native SSL/TLS")
+  else()
+    # TODO Linux?
   endif()
 endif()
 
@@ -163,7 +169,7 @@ set(PIXMAN_DIR          ${CMAKE_CURRENT_SOURCE_DIR}/third_party/pixman)
 set(FREETYPE_DIR        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/freetype2)
 set(HARFBUZZ_DIR        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/harfbuzz)
 set(SIMPLEINI_DIR       ${CMAKE_CURRENT_SOURCE_DIR}/third_party/simpleini)
-set(TINYXML_DIR         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyxml)
+set(TINYXML_DIR         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyxml2)
 set(ZLIB_DIR            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/zlib)
 
 # Search in the "cmake" directory for additional CMake modules.
@@ -225,12 +231,12 @@ endif()
 include_directories(${PNG_INCLUDE_DIRS})
 add_definitions(-DPNG_NO_MMX_CODE) # Do not use MMX optimizations in PNG code
 
-# tinyxml
+# tinyxml2
 if(USE_SHARED_TINYXML)
-  find_library(TINYXML_LIBRARY NAMES tinyxml)
-  find_path(TINYXML_INCLUDE_DIR NAMES tinyxml.h)
+  find_library(TINYXML_LIBRARY NAMES tinyxml2)
+  find_path(TINYXML_INCLUDE_DIR NAMES tinyxml2.h)
 else()
-  set(TINYXML_LIBRARY tinyxml)
+  set(TINYXML_LIBRARY tinyxml2)
   set(TINYXML_INCLUDE_DIR ${TINYXML_DIR})
 endif()
 include_directories(${TINYXML_INCLUDE_DIR})
@@ -293,7 +299,7 @@ if(USE_SHARED_CMARK)
   find_path(CMARK_INCLUDE_DIRS NAMES cmark.h)
 else()
   add_definitions(-DCMARK_STATIC_DEFINE)
-  set(CMARK_LIBRARIES cmark_static)
+  set(CMARK_LIBRARIES cmark)
 endif()
 
 if(REQUIRE_CURL)

@@ -1,5 +1,5 @@
 // Aseprite
-// Copyright (C) 2018-2023  Igara Studio S.A.
+// Copyright (C) 2018-2024  Igara Studio S.A.
 // Copyright (C) 2001-2018  David Capello
 //
 // This program is distributed under the terms of
@@ -704,8 +704,7 @@ FileOp* FileOp::createSaveDocumentOperation(const Context* context,
       // show the alert dialog.
       if (fatal) {
         ui::Alert::show(
-          fmt::format(
-            Strings::alerts_file_format_doesnt_support_error(),
+          Strings::alerts_file_format_doesnt_support_error(
             format->name(),
             warnings));
         ret = 1;
@@ -714,8 +713,7 @@ FileOp* FileOp::createSaveDocumentOperation(const Context* context,
         ret = OptionalAlert::show(
           Preferences::instance().saveFile.showFileFormatDoesntSupportAlert,
           1, // Yes is the default option when the alert dialog is disabled
-          fmt::format(
-            Strings::alerts_file_format_doesnt_support_warning(),
+          Strings::alerts_file_format_doesnt_support_warning(
             format->name(),
             warnings));
       }
@@ -785,8 +783,7 @@ FileOp* FileOp::createSaveDocumentOperation(const Context* context,
         OptionalAlert::show(
           Preferences::instance().saveFile.showExportAnimationInSequenceAlert,
           1,
-          fmt::format(
-            Strings::alerts_export_animation_in_sequence(),
+          Strings::alerts_export_animation_in_sequence(
             int(fop->m_seq.filename_list.size()),
             base::get_file_name(fop->m_seq.filename_list[0]),
             base::get_file_name(fop->m_seq.filename_list[1]))) != 1) {
@@ -1122,13 +1119,13 @@ void FileOp::operate(IFileOpProgress* progress)
 void FileOp::done()
 {
   // Finally done.
-  std::lock_guard lock(m_mutex);
+  const std::lock_guard lock(m_mutex);
   m_done = true;
 }
 
 void FileOp::stop()
 {
-  std::lock_guard lock(m_mutex);
+  const std::lock_guard lock(m_mutex);
   if (!m_done)
     m_stop = true;
 }
@@ -1443,7 +1440,7 @@ void FileOp::setError(const char *format, ...)
 
   // Concatenate the new error
   {
-    std::lock_guard lock(m_mutex);
+    const std::lock_guard lock(m_mutex);
     // Add a newline char automatically if it's needed
     if (!m_error.empty() && m_error.back() != '\n')
       m_error.push_back('\n');
@@ -1455,7 +1452,7 @@ void FileOp::setIncompatibilityError(const std::string& msg)
 {
   // Concatenate the new error
   {
-    std::lock_guard lock(m_mutex);
+    const std::lock_guard lock(m_mutex);
     // Add a newline char automatically if it's needed
     if (!m_incompatibilityError.empty() && m_incompatibilityError.back() != '\n')
       m_incompatibilityError.push_back('\n');
@@ -1465,7 +1462,7 @@ void FileOp::setIncompatibilityError(const std::string& msg)
 
 void FileOp::setProgress(double progress)
 {
-  std::lock_guard lock(m_mutex);
+  const std::lock_guard lock(m_mutex);
 
   if (isSequence()) {
     m_progress =
@@ -1494,7 +1491,7 @@ double FileOp::progress() const
 {
   double progress;
   {
-    std::lock_guard lock(m_mutex);
+    const std::lock_guard lock(m_mutex);
     progress = m_progress;
   }
   return progress;
@@ -1506,7 +1503,7 @@ bool FileOp::isDone() const
 {
   bool done;
   {
-    std::lock_guard lock(m_mutex);
+    const std::lock_guard lock(m_mutex);
     done = m_done;
   }
   return done;
