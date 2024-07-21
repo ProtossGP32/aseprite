@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim as builder
+FROM debian:bookworm-slim as builder
 # Install linux dependencies
 RUN apt-get update -y && apt-get install -y \
 	g++ \
