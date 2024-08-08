@@ -14,4 +14,4 @@
 .vs
 tests/_test*
 build
-out
+CMakeSettings.json
